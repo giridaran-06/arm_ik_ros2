@@ -13,10 +13,10 @@ Most robotics projects use MoveIt as a black box.
 This project does the opposite — every joint angle is computed
 by a geometric IK solver derived from first principles.
 
-The robot accepts a target pose (x, y, phi) and solves
-exactly which angles each joint must rotate to reach it.
+Click anywhere in RViz → IK solver computes joint angles → arm moves to that point in Gazebo.
 Both elbow-up and elbow-down solutions are computed.
 Unreachable targets are rejected explicitly with a clear error.
+Every solution is verified using Forward Kinematics before sending to the robot.
 
 ---
 
@@ -49,12 +49,11 @@ theta3 = phi - theta1 - theta2
 ```
 
 ### Step 4 — FK Verification
-Every solution is verified by plugging back into FK equations:
+Every solution is verified before sending to the robot:
 ```
 x_check = L1*cos(t1) + L2*cos(t1+t2) + L3*cos(t1+t2+t3)
 y_check = L1*sin(t1) + L2*sin(t1+t2) + L3*sin(t1+t2+t3)
 ```
-If x_check != x or y_check != y, the solution is rejected.
 
 ---
 
@@ -77,12 +76,12 @@ If x_check != x or y_check != y, the solution is rejected.
 ```
 arm_ik_ros2/
 ├── scripts/
-│   ├── ik_solver.py       # Analytical IK solver
+│   ├── ik_solver.py       # Analytical IK solver + ROS2 node
 │   └── fk.py              # FK verification
 ├── urdf/
 │   └── arm.urdf           # Robot description
 ├── config/
-│   └── controllers.yaml   # ros2_control config
+│   └── controllers.yaml   # ros2_control configuration
 ├── launch/
 │   └── arm_launch.py      # Launch file
 └── README.md
@@ -95,6 +94,7 @@ arm_ik_ros2/
 - ROS2 Humble
 - Gazebo Ignition / Fortress
 - ros2_control — JointGroupPositionController
+- RViz2 — click-to-move interface
 - Python 3
 - No MoveIt
 
@@ -102,22 +102,48 @@ arm_ik_ros2/
 
 ## How to Run
 
+**Terminal 1 — Launch Gazebo**
 ```bash
-# Terminal 1 — Launch Gazebo
-ros2 launch arm_ik_description arm_launch.py
+ros2 launch ros_gz_sim gz_sim.launch.py
+```
 
-# Terminal 2 — Spawn the robot
+**Terminal 2 — Robot State Publisher**
+```bash
+cd ~/arm_ik_ros2_ws/src/arm_ik_description/urdf
+ros2 run robot_state_publisher robot_state_publisher arm.urdf
+```
+
+**Terminal 3 — Spawn Robot**
+```bash
 ros2 run ros_gz_sim create \
   -topic /robot_description \
-  -name my_arm -x 0 -y 0 -z 0.5
+  -name my_arm \
+  -x 0 -y 0 -z 0.5
+```
 
-# Terminal 3 — Activate controllers
+**Terminal 4 — Activate Controllers**
+```bash
+ros2 control load_controller joint_state_broadcaster
+ros2 control load_controller position_controller
 ros2 control set_controller_state joint_state_broadcaster active
 ros2 control set_controller_state position_controller active
-
-# Terminal 4 — Run IK solver
-python3 scripts/ik_solver.py
 ```
+
+**Terminal 5 — Launch RViz**
+```bash
+rviz2
+```
+In RViz add: RobotModel, TF, Marker
+Set Marker topic to `/target_marker`
+Set Fixed Frame to `base`
+
+**Terminal 6 — Run IK Solver**
+```bash
+cd ~/arm_ik_ros2_ws/src/arm_ik_description/scripts
+python3 ik_solver.py
+```
+
+Now click anywhere in RViz — the arm moves to that point.
 
 ---
 
